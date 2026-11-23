@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公式参数快拷工具</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f4f6fa; color: #1f2937; min-height: 100vh; padding: 32px 16px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin-bottom: 12px; color: #111827; }
+  label.tag { font-size: 13px; color: #374151; display: block; margin-bottom: 6px; font-weight: 600; }
+  textarea, input[type="text"] {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 8px;
+    padding: 10px 12px; font-size: 14px; font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: #fbfcfe; resize: vertical;
+  }
+  textarea:focus, input:focus { outline: 2px solid #4f7cff33; border-color: #4f7cff; }
+  .funcs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .chip {
+    padding: 6px 14px; border-radius: 999px; border: 1px solid #d1d5db;
+    cursor: pointer; font-size: 13px; user-select: none; background: #fff; transition: all .15s;
+  }
+  .chip.on { background: #4f7cff; color: #fff; border-color: #4f7cff; }
+  .addrow { display: flex; gap: 8px; margin-top: 10px; }
+  .addrow input { flex: 1; }
+  button {
+    background: #4f7cff; color: #fff; border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; cursor: pointer;
+  }
+  button.ghost { background: #eef2ff; color: #4f7cff; }
+  button:hover { filter: brightness(1.05); }
+  .hint { font-size: 12px; color: #9ca3af; margin-top: 6px; }
+  .out-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 8px; background: #f8fafc; margin-bottom: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px;
+  }
+  .out-item .fx { color: #7c3aed; font-weight: 600; flex-shrink: 0; width: 92px; }
+  .out-item .f { flex: 1; word-break: break-all; }
+  .out-item button { padding: 4px 10px; font-size: 12px; flex-shrink: 0; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; }
+  .empty { color: #9ca3af; font-size: 13px; padding: 12px 0; text-align: center; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #111827; color: #fff; padding: 8px 18px; border-radius: 8px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📋 公式参数快拷工具</h1>
+  <div class="sub">粘贴一条 Excel 公式，自动提取参数，一键生成同款区域的不同函数公式</div>
+
+  <div class="card">
+    <h2>① 粘贴源公式</h2>
+    <label class="tag">支持一次粘贴多行（每行一条公式，参数会被分别提取）</label>
+    <textarea id="src" rows="3" placeholder="=AVERAGE(O393:O401)&#10;=SUM(P393:P401)"></textarea>
+    <div class="hint">提示：也可以只粘贴参数本身，如 O393:O401</div>
+  </div>
+
+  <div class="card">
+    <h2>② 勾选要生成的函数</h2>
+    <div class="funcs" id="chips"></div>
+    <div class="addrow">
+      <input type="text" id="customFn" placeholder="自定义函数名，如 STDEV / PERCENTILE">
+      <button class="ghost" onclick="addCustom()">添加</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>③ 复制结果</h2>
+    <div class="toolbar">
+      <button onclick="copyColumn()">📥 复制整列（可直接粘贴进 Excel 一列）</button>
+      <span class="hint" id="count"></span>
+    </div>
+    <div id="out"><div class="empty">在上方粘贴公式后，结果会显示在这里</div></div>
+  </div>
+</div>
+<div class="toast" id="toast">已复制</div>
+
+<script>
+const PRESET = ["MEDIAN", "MIN", "MAX", "SUM", "COUNT", "COUNTA", "STDEV", "VAR", "LARGE", "SMALL", "AVERAGEIF"];
+const state = { fns: new Set(["MEDIAN", "MIN", "MAX"]) };
+const chipsEl = document.getElementById("chips");
+const srcEl = document.getElementById("src");
+const outEl = document.getElementById("out");
+const toastEl = document.getElementById("toast");
+
+function renderChips() {
+  chipsEl.innerHTML = "";
+  [...PRESET, ...[...state.fns].filter(f => !PRESET.includes(f))].forEach(fn => {
+    const d = document.createElement("div");
+    d.className = "chip" + (state.fns.has(fn) ? " on" : "");
+    d.textContent = fn;
+    d.onclick = () => { state.fns.has(fn) ? state.fns.delete(fn) : state.fns.add(fn); renderChips(); render(); };
+    chipsEl.appendChild(d);
+  });
+}
+
+function addCustom() {
+  const v = document.getElementById("customFn").value.trim().toUpperCase();
+  if (v) { state.fns.add(v); document.getElementById("customFn").value = ""; renderChips(); render(); }
+}
+
+// 提取参数：=FUNC(args) -> args；纯参数 -> 原样
+function extractArg(line) {
+  const t = line.trim();
+  const m = t.match(/^=\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\(([\s\S]*)\)\s*$/);
+  if (m) return { fn: m[1].toUpperCase(), arg: m[2].trim() };
+  return { fn: "", arg: t };
+}
+
+function parseAll() {
+  return srcEl.value.split("\n").map(s => s.trim()).filter(Boolean).map(extractArg);
+}
+
+function render() {
+  const items = parseAll();
+  const fns = [...state.fns];
+  outEl.innerHTML = "";
+  if (!items.length || !fns.length) {
+    outEl.innerHTML = '<div class="empty">在上方粘贴公式后，结果会显示在这里</div>';
+    document.getElementById("count").textContent = "";
+    return;
+  }
+  let n = 0;
+  items.forEach(({ fn, arg }) => {
+    fns.forEach(f => {
+      n++;
+      const row = document.createElement("div");
+      row.className = "out-item";
+      row.innerHTML = `<span class="fx">=${f}(</span><span class="f">${arg})</span>`;
+      const btn = document.createElement("button");
+      btn.textContent = "复制";
+      btn.onclick = () => copy(`=${f}(${arg})`);
+      row.appendChild(btn);
+      outEl.appendChild(row);
+    });
+  });
+  document.getElementById("count").textContent = `共 ${n} 条`;
+}
+
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 1200);
+  });
+}
+
+function copyColumn() {
+  const items = parseAll();
+  const fns = [...state.fns];
+  if (!items.length || !fns.length) return;
+  const lines = [];
+  items.forEach(({ arg }) => fns.forEach(f => lines.push(`=${f}(${arg})`)));
+  copy(lines.join("\n"));
+}
+
+srcEl.addEventListener("input", render);
+renderChips(); render();
+</script>
+</body>
+</html>
