@@ -39,12 +39,12 @@ Sub 公式参数快拷()
         Exit Sub
     End If
 
-    ' 3. 询问要生成哪些函数
+    ' 3. 询问要生成哪些函数（默认值可自行增删，用英文逗号分隔）
     inputFns = InputBox( _
         "将对选区内每个含公式的单元格分别处理。" & vbCrLf & _
         "第一个公式的参数是：" & previewArg & vbCrLf & vbCrLf & _
         "请输入要生成的函数（英文逗号分隔）：", _
-        "公式参数快拷", "MEDIAN, MIN, MAX")
+        "公式参数快拷", "MEDIAN, MIN, MAX, SUM, AVERAGE")
     If inputFns = "" Then Exit Sub
 
     ' 4. 询问生成方向
