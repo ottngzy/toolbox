@@ -1,6 +1,6 @@
 -- ============================================================
--- 公式参数快拷 · 一键安装器
--- 双击运行：自动复制 VBA 代码 → 打开 Excel → 打开宏编辑器 → 插入模块 → 粘贴
+-- 公式参数快拷 · 一键安装器（覆盖更新版）
+-- 双击运行：复制最新 VBA 代码 → 打开 Excel → 打开宏编辑器 → 全选旧代码 → 粘贴覆盖
 -- ============================================================
 on run
 	-- 1. 读取随 App 打包的 .bas 文件，去掉属性行后放入剪贴板
@@ -50,29 +50,47 @@ on run
 	end tell
 	delay 3
 
-	-- 4. 插入 > 模块，然后粘贴
-	set inserted to false
+	-- 4. 覆盖粘贴：VBE 打开时会恢复上次编辑的模块，直接全选替换
+	set pasted to false
 	if openedVBE then
 		tell application "System Events"
 			try
-				try
-					click menu item "模块" of menu "插入" of menu bar 1 of process "Microsoft Excel"
-				on error
-					click menu item "Module" of menu "Insert" of menu bar 1 of process "Microsoft Excel"
-				end try
-				set inserted to true
+				keystroke "a" using command down
+				delay 0.5
+				keystroke "v" using command down
+				set pasted to true
 			end try
 		end tell
 	end if
-	if inserted then
-		delay 1
-		tell application "System Events" to keystroke "v" using command down
+	delay 1
+
+	-- 5. 检测代码是否真的进了编辑窗格（尽力读取窗格文本）
+	set paneOK to false
+	if pasted then
+		try
+			tell application "System Events"
+				tell process "Microsoft Excel"
+					set paneText to ""
+					try
+						set paneText to value of text area 1 of scroll area 1 of window 1
+					end try
+					if paneText does not contain "公式参数快拷" then
+						try
+							set paneText to value of text area 1 of window 1
+						end try
+					end if
+				end tell
+			tell
+			if paneText contains "公式参数快拷" then set paneOK to true
+		end try
 	end if
 
-	-- 5. 汇报结果
-	if openedVBE and inserted then
-		display dialog "✅ 部署完成！" & return & return & "VBA 代码已自动粘贴进宏编辑器。" & return & return & "使用方法：选中含公式的单元格 → 按 Option+F8 → 运行「公式参数快拷」，会依次问你函数列表和生成方向（下/右/左/上）。" buttons {"完成"} default button 1 with title "公式参数快拷安装器"
+	-- 6. 汇报结果
+	if pasted and paneOK then
+		display dialog "✅ 已覆盖更新！" & return & return & "最新 VBA 代码已粘贴进宏编辑器（替换了旧代码）。" & return & return & "使用方法：选中含公式的单元格区域 → 按 Option+F8 → 运行「公式参数快拷」，可自定义函数列表和生成方向（下/右/左/上）。" buttons {"完成"} default button 1 with title "公式参数快拷安装器"
+	else if pasted then
+		display dialog "⚠️ 已执行粘贴，但无法确认结果" & return & return & "最常见的原因是宏编辑器里没有打开任何模块（灰色空白）。请手动完成：" & return & "在编辑器左侧工程窗口里双击你原来的模块（如 Module1）→ 点进右边代码窗口 → 按 Cmd+A 全选 → Cmd+V 粘贴（代码已复制好，直接粘即可）。" buttons {"好的"} default button 1 with title "公式参数快拷安装器"
 	else
-		display dialog "⚠️ 自动操作没有完成" & return & return & "VBA 代码已经复制到你的剪贴板，请手动完成最后一步：" & return & "Excel 菜单「工具 → 宏 → Visual Basic 编辑器」→「插入 → 模块」→ 按 Cmd+V 粘贴。" & return & return & "如果希望以后全自动：系统设置 → 隐私与安全性 → 辅助功能，把「公式参数快拷安装器」打勾，然后重新双击本程序。" buttons {"好的"} default button 1 with title "公式参数快拷安装器"
+		display dialog "⚠️ 自动操作没有完成" & return & return & "VBA 代码已经复制到你的剪贴板，请手动完成：" & return & "Excel 菜单「工具 → 宏 → Visual Basic 编辑器」→ 双击原来的模块 → 代码窗口里 Cmd+A 全选 → Cmd+V 粘贴覆盖。" & return & return & "如果希望以后全自动：系统设置 → 隐私与安全性 → 辅助功能，把「公式参数快拷安装器」打勾，然后重新双击本程序。" buttons {"好的"} default button 1 with title "公式参数快拷安装器"
 	end if
 end run
