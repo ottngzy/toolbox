@@ -80,7 +80,7 @@ on run
 						end try
 					end if
 				end tell
-			tell
+			end tell
 			if paneText contains "公式参数快拷" then set paneOK to true
 		end try
 	end if
